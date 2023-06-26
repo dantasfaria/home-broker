@@ -50,5 +50,46 @@ func (b *Book) Trade() {
 					sellOrders.Push(sellOrder)
 				}
 			}
-		} 
+		} else if order.OrderType == "SELL" {
+			sellOrders.Push(order)
+			if buyOrders.Len() > 0 && buyOrders.Orders[0].Price >= order.Price {
+				buyOrders :=buyOrders.Pop().(*Order)
+				if buyOrders.PendingShares > 0 {
+					transaction := NewTransaction(order, buyOrder, order.Shares, buyOrders.Price)
+					b.AddTransaction(transaction, b.Wg)
+					buyOrder.Transactions = append(buyOrders.Transactions, transaction)
+					order.Transactions = append(order.Transactions, transaction)
+					b.OrdersChanOut <- buyOrder
+					b.OrdersChanOut <- order
+					if buyOrder.PendingShares > 0 {
+						buyOrders.Push(buyOrder)
+					}
+				}
+			}
+		}
+
+}
+
+func (b * Book) AddTransaction(transaction *Transaction, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	sellingShares := transaction.SellingOrder.PendingShares
+	buyingShares := transaction.BuyingOrder.PendingShares
+
+	minShares := sellingShares
+	if buyingShares < minShares {
+		minShares = buyingShares
+	}
+
+	transaction.SellingOrder.Investor.UpdateAssetPosition(transaction.SellingOrder.Asset.ID, -minShares)
+	transaction.AddSellOrderPendingShares(-minShares)
+	transaction.BuyingOrder.Investor.UpdateAssetPosition(transaction.BuyingOrder.Asset.ID, minShares)
+	transaction.AddBuyOrderPendingShares(-minShares)
+
+	transaction.CalculateTotal(transaction.Shares, transaction.BuyingOrder.Price)
+
+	transaction.CloseBuyOrder()
+	transaction.CloseSellOrder()
+
+	b.Transactions = append(b.Transactions, transaction)
 }
