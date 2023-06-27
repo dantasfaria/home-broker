@@ -10,7 +10,7 @@ type TradeInput struct {
 	OrderType     string  `json:"order_type"`
 }
 
-type TradeOutput struct {
+type OrderOutput struct {
 	OrderID           string               `json:"order_id"`
 	InvestorID        string               `json:"investor_id"`
 	AssetID           string               `json:"asset_id"`
